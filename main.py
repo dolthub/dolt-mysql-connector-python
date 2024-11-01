@@ -1,12 +1,25 @@
 import mysql.connector
 
 # configuration to connect to Dolt server
+# it connects to `mybranch` branch on `doltdb` database
 config = {
   'user': 'root',
   'password': '',
   'host': '127.0.0.1',
-  'database': 'doltdb',
+  'database': 'doltdb/mybranch',
 }
+
+'''
+Check current branch we are on.
+'''
+def check_current_branch(cnx: mysql.connector.connection):
+  print("\n--checking current branch\n")
+  cursor = cnx.cursor()
+  cursor.execute("SELECT active_branch()")
+  for (active_branch) in cursor:
+    print('Current branch: {}'.format(active_branch[0]))
+  cursor.close()
+
 
 '''
 Queries the 'playlist' table in 'doltdb' database.
@@ -20,6 +33,17 @@ def select_from_table(cnx: mysql.connector.connection):
   cursor.close()
 
 '''
+Insert, delete and update rows on 'playlist' table.
+'''
+def make_changes_to_table(cnx: mysql.connector.connection):
+  print("\n--making changes to 'playlist' table\n")
+  cursor = cnx.cursor()
+  cursor.execute("insert into playlist (artist_name, song_name) values ('Taylor Swift', 'Paper Rings');")
+  cursor.execute("delete from playlist where id = 2;")
+  cursor.execute("update playlist set song_name = 'Everything Goes On' where artist_name = 'Porter Robinson';")
+  cursor.close()
+
+'''
 Commits any current changes.
 '''
 def commit(cnx: mysql.connector.connection, msg: str):
@@ -30,12 +54,12 @@ def commit(cnx: mysql.connector.connection, msg: str):
   cursor.close()
 
 '''
-Show diff between current HEAD and the last commit before it.
+Show diff between 'main' and 'mybranch' branches.
 '''
 def diff_on_playlist(cnx: mysql.connector.connection):
   print("\n--showing the diff on 'playlist' table\n")
   cursor = cnx.cursor()
-  cursor.execute("select * from dolt_diff('HEAD~', 'HEAD', 'playlist');")
+  cursor.execute("select * from dolt_diff('main', 'mybranch', 'playlist');")
   for (to_id, to_artist_name, to_song_name, to_commit, to_commit_date, 
        from_id, from_artist_name, from_song_name, from_commit, from_commit_date, diff_type) in cursor:
     if diff_type == "added":
@@ -48,23 +72,35 @@ def diff_on_playlist(cnx: mysql.connector.connection):
   cursor.close()
 
 '''
-Insert, delete and update rows on 'playlist' table.
+Switch to an existing branch.
 '''
-def make_changes_to_table(cnx: mysql.connector.connection):
-  print("\n--making changes to 'playlist' table\n")
+def checkout_branch(cnx: mysql.connector.connection, branch: str):
+  print("\n--switching to a different branch\n")
   cursor = cnx.cursor()
-  cursor.execute("insert into playlist (artist_name, song_name) values ('Taylor Swift', 'Paper Rings');")
-  cursor.execute("delete from playlist where id = 2;")
-  cursor.execute("update playlist set song_name = 'Everything Goes On' where artist_name = 'Porter Robinson';")
+  cursor.callproc("DOLT_CHECKOUT", (branch,)) 
+  cursor.close()
+
+'''
+Merge a branch.
+'''
+def merge_branch(cnx: mysql.connector.connection, branch: str):
+  print("\n--merging a branch\n")
+  cursor = cnx.cursor()
+  cursor.callproc("DOLT_MERGE", (branch,)) 
   cursor.close()
 
 try:
   cnx = mysql.connector.connect(**config)
   print("Successfully connected to Dolt server!")
+  check_current_branch(cnx)
   select_from_table(cnx)
   make_changes_to_table(cnx)
   commit(cnx, "commit insert, delete and update changes")
   diff_on_playlist(cnx)
+  checkout_branch(cnx, 'main')
+  check_current_branch(cnx)
+  select_from_table(cnx)
+  merge_branch(cnx, 'mybranch')
   select_from_table(cnx)
 except mysql.connector.Error as err:
     print(err)
