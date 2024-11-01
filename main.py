@@ -1,7 +1,6 @@
 import mysql.connector
 
 # configuration to connect to Dolt server
-# it connects to `mybranch` branch on `doltdb` database
 config = {
   'user': 'root',
   'password': '',
@@ -89,6 +88,18 @@ def merge_branch(cnx: mysql.connector.connection, branch: str):
   cursor.callproc("DOLT_MERGE", (branch,)) 
   cursor.close()
 
+'''
+Print the commit log.
+'''
+def dolt_log(cnx: mysql.connector.connection):
+  print("\n--showing the commit log\n")
+  cursor = cnx.cursor()
+  cursor.execute("SELECT commit_hash, committer, message FROM dolt_log")
+  print('commit_hash, committer, message')
+  for (commit_hash, committer, message) in cursor:
+    print('{}, {}, {}'.format(commit_hash, committer, message))
+  cursor.close()
+
 try:
   cnx = mysql.connector.connect(**config)
   print("Successfully connected to Dolt server!")
@@ -102,6 +113,7 @@ try:
   select_from_table(cnx)
   merge_branch(cnx, 'mybranch')
   select_from_table(cnx)
+  dolt_log(cnx)
 except mysql.connector.Error as err:
     print(err)
 else:
